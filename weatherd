@@ -1,7 +1,6 @@
 #!/bin/sh
 
-#REGION="$(curl -s https://ipapi.co/json/ | jq -r '.region_code' -)"
-REGION=FL
+REGION="$(curl -s https://ipapi.co/json/ | jq -r '.region_code' -)"
 SLEEPTIME=5
 curl -s https://api.weather.gov/alerts/active/area/$REGION | jq '.features[0].properties.parameters.NWSheadline[0]' | sed 's/"//g' > /tmp/alerts
 

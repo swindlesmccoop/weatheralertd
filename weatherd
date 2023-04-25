@@ -1,0 +1,24 @@
+#!/bin/sh
+
+#REGION="$(curl -s https://ipapi.co/json/ | jq -r '.region_code' -)"
+REGION=FL
+SLEEPTIME=5
+curl -s https://api.weather.gov/alerts/active/area/$REGION | jq '.features[0].properties.parameters.NWSheadline[0]' | sed 's/"//g' > /tmp/alerts
+
+pgrep X > /dev/null && CMD='notify-send $(cat /tmp/alerts)' || CMD="cat /tmp/alerts"
+$CMD
+
+while true; do
+	curl -s https://api.weather.gov/alerts/active/area/$REGION | jq '.features[0].properties.parameters.NWSheadline[0]' | sed 's/"//g' > /tmp/alerts.new
+
+	OLDMD5="$(md5sum /tmp/alerts | awk '{ print $1 }')"
+	NEWMD5="$(md5sum /tmp/alerts.new | awk '{ print $1 }')"
+
+	if [ "$OLDMD5" != "$NEWMD5" ]; then
+		mv /tmp/alerts.new /tmp/alerts
+		$CMD
+	fi
+
+	sleep $SLEEPTIME
+done
+

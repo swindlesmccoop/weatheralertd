@@ -2,8 +2,7 @@
 
 REGION="$(curl -s https://ipapi.co/json/ | grep 'region_code' | awk '{print $2}' | sed -e 's/"//g; s/,//')"
 URL="https://api.weather.gov/alerts/active/area/$REGION"
-#URL="https://swindlesmccoop.xyz/api"
-SLEEPTIME=5
+SLEEPTIME=60
 
 _getalert() {
 	curl -s $URL | grep -m 1 -A 1 NWSheadline | tail -n 1 | grep -o '".*"' | sed 's/"//g'

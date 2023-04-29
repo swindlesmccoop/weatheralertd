@@ -1,23 +1,31 @@
 #!/bin/sh
 
-REGION="$(curl -s https://ipapi.co/json/ | jq -r '.region_code' -)"
+REGION="$(curl -s https://ipapi.co/json/ | grep 'region_code' | awk '{print $2}' | sed -e 's/"//g; s/,//')"
+URL="https://api.weather.gov/alerts/active/area/$REGION"
+#URL="https://swindlesmccoop.xyz/api"
 SLEEPTIME=5
-curl -s https://api.weather.gov/alerts/active/area/$REGION | jq '.features[0].properties.parameters.NWSheadline[0]' | sed 's/"//g' > /tmp/alerts
 
-pgrep X > /dev/null && CMD='notify-send $(cat /tmp/alerts)' || CMD="cat /tmp/alerts"
-$CMD
+_getalert() {
+	curl -s $URL | grep -m 1 -A 1 NWSheadline | tail -n 1 | grep -o '".*"' | sed 's/"//g'
+}
+
+_getmd5() {
+	md5sum $1 | awk '{print $1}'
+}
+
+_getalert > /tmp/alert
+[ -s /tmp/alert ] && notify-send "$(cat /tmp/alert)" || notify-send "No alerts at this time."
 
 while true; do
-	curl -s https://api.weather.gov/alerts/active/area/$REGION | jq '.features[0].properties.parameters.NWSheadline[0]' | sed 's/"//g' > /tmp/alerts.new
+	_getalert > /tmp/alert.new
 
-	OLDMD5="$(md5sum /tmp/alerts | awk '{ print $1 }')"
-	NEWMD5="$(md5sum /tmp/alerts.new | awk '{ print $1 }')"
+	OLDMD5="$(_getmd5 /tmp/alert)"
+	NEWMD5="$(_getmd5 /tmp/alert.new)"
 
 	if [ "$OLDMD5" != "$NEWMD5" ]; then
-		mv /tmp/alerts.new /tmp/alerts
-		$CMD
+		mv /tmp/alert.new /tmp/alert
+		notify-send "$(cat /tmp/alert)"
 	fi
 
 	sleep $SLEEPTIME
 done
-

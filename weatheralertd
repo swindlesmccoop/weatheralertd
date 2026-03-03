@@ -1,6 +1,7 @@
 #!/bin/sh
 
-REGION="$(curl -sf https://ipapi.co/json/ | jq -r '.region_code // empty')"
+REGION="$(curl -sf https://ipapi.co/json/ | grep -o '"region_code":"[^"]*"' | cut -d'"' -f4)"
+
 [ -z "$REGION" ] && echo "Could not determine region." && exit 1
 
 URL="https://api.weather.gov/alerts/active/area/$REGION"
@@ -12,7 +13,9 @@ SLEEPTIME=60
 trap 'rm -f "$ALERT_FILE" "$ALERT_NEW_FILE"' EXIT INT TERM
 
 _getalert() {
-    curl -sf "$URL" | jq -r '[.features[].properties.headline // empty] | join("\n")'
+    curl -sf "$URL" |
+    grep -o '"headline"[[:space:]]*:[[:space:]]*"[^"]*"' |
+    sed 's/.*"headline"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/'
 }
 
 if _getalert > "$ALERT_FILE"; then

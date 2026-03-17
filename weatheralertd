@@ -1,30 +1,36 @@
 #!/bin/sh
 
-REGION="$(curl -s https://ipapi.co/json/ | grep 'region_code' | awk '{print $2}' | sed -e 's/"//g; s/,//')"
+REGION="$(curl -sf https://ipapi.co/json/ | grep -o '"region_code":"[^"]*"' | cut -d'"' -f4)"
+
+[ -z "$REGION" ] && echo "Could not determine region." && exit 1
+
 URL="https://api.weather.gov/alerts/active/area/$REGION"
+
+ALERT_FILE="/tmp/weatheralert.$$.alert"
+ALERT_NEW_FILE="/tmp/weatheralert.$$.alert.new"
 SLEEPTIME=60
 
+trap 'rm -f "$ALERT_FILE" "$ALERT_NEW_FILE"' EXIT INT TERM
+
 _getalert() {
-	curl -s $URL | grep -m 1 -A 1 NWSheadline | tail -n 1 | grep -o '".*"' | sed 's/"//g'
+    curl -sf "$URL" |
+    grep -o '"headline"[[:space:]]*:[[:space:]]*"[^"]*"' |
+    sed 's/.*"headline"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/'
 }
 
-_getmd5() {
-	md5sum $1 | awk '{print $1}'
-}
-
-_getalert > /tmp/alert
-[ -s /tmp/alert ] && notify-send "$(cat /tmp/alert)" || notify-send "No alerts at this time."
+if _getalert > "$ALERT_FILE"; then
+    [ -s "$ALERT_FILE" ] && notify-send "$(< "$ALERT_FILE")"
+fi
 
 while true; do
-	_getalert > /tmp/alert.new
+    if _getalert > "$ALERT_NEW_FILE"; then
+        if ! cmp -s "$ALERT_FILE" "$ALERT_NEW_FILE"; then
+            mv "$ALERT_NEW_FILE" "$ALERT_FILE"
+            [ -s "$ALERT_FILE" ] && notify-send "$(< "$ALERT_FILE")"
+        fi
+    else
+        echo "Failed to fetch alerts."
+    fi
 
-	OLDMD5="$(_getmd5 /tmp/alert)"
-	NEWMD5="$(_getmd5 /tmp/alert.new)"
-
-	if [ "$OLDMD5" != "$NEWMD5" ]; then
-		mv /tmp/alert.new /tmp/alert
-		notify-send "$(cat /tmp/alert)"
-	fi
-
-	sleep $SLEEPTIME
+    sleep "$SLEEPTIME"
 done
